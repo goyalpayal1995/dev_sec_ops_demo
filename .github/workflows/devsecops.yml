@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   # ── Job 1: SAST with Bandit ─────────────────────────────
   sast:
@@ -26,7 +30,7 @@ jobs:
       - name: Run Bandit SAST scan
         run: |
           bandit -r . -f json -o bandit-report.json || true
-          bandit -r . -lll || true
+          bandit -r . -ll || true
 
       - name: Upload Bandit report
         uses: actions/upload-artifact@v4
@@ -34,7 +38,7 @@ jobs:
           name: bandit-report
           path: bandit-report.json
 
-  # ── Job 2: Build Docker image ───────────────────────────
+  # ── Job 2: Build Docker image ────────────────────────────
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
@@ -55,33 +59,50 @@ jobs:
           name: docker-image
           path: image.tar.gz
 
-# ── Job 3: DAST with OWASP ZAP ─────────────────────────
+  # ── Job 3: DAST with OWASP ZAP ──────────────────────────
   dast:
     name: Dynamic Analysis (OWASP ZAP)
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Start your app in the background
-      - name: Set up Python & run app
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install flask
+
+      - name: Fix ZAP permissions
         run: |
-          pip install flask
-          python app.py &
-          sleep 5   # wait for Flask to start
+          mkdir -p ${{ github.workspace }}/zap-wrk
+          chmod 777 ${{ github.workspace }}/zap-wrk
 
-   # ZAP baseline scan against the running app
+      - name: Start Flask app in background
+        run: |
+          python app.py &
+          sleep 8
+          curl http://localhost:8080 || echo "App not responding"
+
       - name: Run OWASP ZAP baseline scan
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: "http://localhost:5000"
-          rules_file_name: ".zap/rules.tsv"
-          fail_action: false       # set true to fail on findings
-          artifact_name: zap-report
+          target: "http://localhost:8080"
+          fail_action: true
+          cmd_options: "-a -J zap-report.json"
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-report
-          path: report_html.html
+          path: |
+            report_html.html
+            zap-report.json
