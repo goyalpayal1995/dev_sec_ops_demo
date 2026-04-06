@@ -1,9 +1,10 @@
 from flask import Flask, request, render_template_string
-import sqlite3, os
+import sqlite3
+import os
 
 app = Flask(__name__)
 
-# ❌ Hardcoded secret (SAST will catch this)
+# ❌ Hardcoded secrets
 SECRET_KEY = "supersecretpassword123"
 DB_PASSWORD = "admin123"
 
@@ -18,12 +19,12 @@ def get_db():
 @app.route("/")
 def index():
     return "<h1>Vulnerable App</h1><a href='/search?q=Alice'>Search users</a>"
-# ❌ SQL Injection vulnerability
+
+# ❌ SQL Injection
 @app.route("/search")
 def search():
     q = request.args.get("q", "")
     conn = get_db()
-    # Never do this — use parameterised queries instead
     query = f"SELECT * FROM users WHERE name = '{q}'"
     rows = conn.execute(query).fetchall()
     return str(rows)
@@ -32,8 +33,18 @@ def search():
 @app.route("/greet")
 def greet():
     name = request.args.get("name", "stranger")
-    # Never render user input directly into HTML
     return render_template_string(f"<h1>Hello {name}!</h1>")
 
+# ❌ Missing security headers route
+@app.route("/user")
+def user():
+    user_id = request.args.get("id", "1")
+    conn = get_db()
+    # SQL injection via id parameter
+    query = f"SELECT * FROM users WHERE id = {user_id}"
+    rows = conn.execute(query).fetchall()
+    return render_template_string(f"<h1>User: {rows}</h1>")
+
 if __name__ == "__main__":
+    # ❌ debug=True exposes Werkzeug debugger
     app.run(debug=True, host="0.0.0.0", port=5000)
