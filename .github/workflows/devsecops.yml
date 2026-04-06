@@ -60,6 +60,7 @@ jobs:
           path: image.tar.gz
 
   # ── Job 3: DAST with OWASP ZAP ──────────────────────────
+ # ── Job 3: DAST with OWASP ZAP ──────────────────────────
   dast:
     name: Dynamic Analysis (OWASP ZAP)
     runs-on: ubuntu-latest
@@ -95,6 +96,7 @@ jobs:
           fail_action: true
           token: ${{ secrets.GITHUB_TOKEN }}
           allow_issue_writing: true
+          artifact_name: "zap-report"
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
