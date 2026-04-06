@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - name: Checkout code
@@ -79,10 +79,8 @@ jobs:
       - name: Install dependencies
         run: pip install flask
 
-      - name: Fix ZAP permissions
-        run: |
-          mkdir -p ${{ github.workspace }}/zap-wrk
-          chmod 777 ${{ github.workspace }}/zap-wrk
+      - name: Fix ZAP workspace permissions
+        run: chmod 777 ${{ github.workspace }}
 
       - name: Start Flask app in background
         run: |
@@ -95,8 +93,8 @@ jobs:
         with:
           target: "http://localhost:5000"
           fail_action: true
-          cmd_options: "-a -J zap-report.json"
           token: ${{ secrets.GITHUB_TOKEN }}
+          allow_issue_writing: true
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
@@ -105,4 +103,5 @@ jobs:
           name: zap-report
           path: |
             report_html.html
-            zap-report.json
+            report_json.json
+            report_md.md
