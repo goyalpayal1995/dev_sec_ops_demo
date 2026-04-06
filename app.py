@@ -1,10 +1,9 @@
 from flask import Flask, request, render_template_string
-import sqlite3
-import os
+import sqlite3, os
 
 app = Flask(__name__)
 
-# ❌ Hardcoded secrets
+# ❌ Hardcoded secret (SAST will catch this)
 SECRET_KEY = "supersecretpassword123"
 DB_PASSWORD = "admin123"
 
@@ -20,11 +19,12 @@ def get_db():
 def index():
     return "<h1>Vulnerable App</h1><a href='/search?q=Alice'>Search users</a>"
 
-# ❌ SQL Injection
+# ❌ SQL Injection vulnerability
 @app.route("/search")
 def search():
     q = request.args.get("q", "")
     conn = get_db()
+    # Never do this — use parameterised queries instead
     query = f"SELECT * FROM users WHERE name = '{q}'"
     rows = conn.execute(query).fetchall()
     return str(rows)
@@ -33,17 +33,8 @@ def search():
 @app.route("/greet")
 def greet():
     name = request.args.get("name", "stranger")
+    # Never render user input directly into HTML
     return render_template_string(f"<h1>Hello {name}!</h1>")
 
-# ❌ SQL Injection via id
-@app.route("/user")
-def user():
-    user_id = request.args.get("id", "1")
-    conn = get_db()
-    query = f"SELECT * FROM users WHERE id = {user_id}"
-    rows = conn.execute(query).fetchall()
-    return render_template_string(f"<h1>User: {rows}</h1>")
-
 if __name__ == "__main__":
-    # ❌ debug=True
-    app.run(debug=True, host="0.0.0.0", port=8080)  # ✅ changed to 8080
+    app.run(debug=True, host="0.0.0.0", port=5000)

@@ -88,12 +88,12 @@ jobs:
         run: |
           python app.py &
           sleep 8
-          curl http://localhost:8080 || echo "App not responding"
+          curl http://localhost:5000 || echo "App not responding"
 
       - name: Run OWASP ZAP baseline scan
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: "http://localhost:8080"
+          target: "http://localhost:5000"
           fail_action: true
           cmd_options: "-a -J zap-report.json"
           token: ${{ secrets.GITHUB_TOKEN }}
