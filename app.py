@@ -35,16 +35,15 @@ def greet():
     name = request.args.get("name", "stranger")
     return render_template_string(f"<h1>Hello {name}!</h1>")
 
-# ❌ Missing security headers route
+# ❌ SQL Injection via id
 @app.route("/user")
 def user():
     user_id = request.args.get("id", "1")
     conn = get_db()
-    # SQL injection via id parameter
     query = f"SELECT * FROM users WHERE id = {user_id}"
     rows = conn.execute(query).fetchall()
     return render_template_string(f"<h1>User: {rows}</h1>")
 
 if __name__ == "__main__":
-    # ❌ debug=True exposes Werkzeug debugger
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # ❌ debug=True
+    app.run(debug=True, host="0.0.0.0", port=8080)  # ✅ changed to 8080
