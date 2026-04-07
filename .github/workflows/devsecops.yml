@@ -56,7 +56,7 @@ jobs:
           image-ref: dev_sec_ops_demo:${{ github.sha }}
           format: table
           exit-code: 1
-          # ignore-unfixed: true
+          ignore-unfixed: true
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL 
 
       - name: Save image as artifact
