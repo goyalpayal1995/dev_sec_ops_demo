@@ -53,11 +53,11 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.20.0
         with:
-        image-ref: dev_sec_ops_demo:${{ github.sha }}
-        format: table
-        exit-code: 1
-        ignore-unfixed: true
-        severity: CRITICAL,HIGH   
+          image-ref: dev_sec_ops_demo:${{ github.sha }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH   
 
       - name: Save image as artifact
         run: docker save dev_sec_ops_demo:${{ github.sha }} | gzip > image.tar.gz
