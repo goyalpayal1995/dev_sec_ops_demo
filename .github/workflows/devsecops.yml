@@ -50,6 +50,15 @@ jobs:
       - name: Build Docker image
         run: docker build -t dev_sec_ops_demo:${{ github.sha }} .
 
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+        image-ref: dev_sec_ops_demo:${{ github.sha }}
+        format: table
+        exit-code: 1
+        ignore-unfixed: true
+        severity: CRITICAL,HIGH   
+
       - name: Save image as artifact
         run: docker save dev_sec_ops_demo:${{ github.sha }} | gzip > image.tar.gz
 
@@ -88,12 +97,22 @@ jobs:
           sleep 8
           curl http://localhost:5000 || echo "App not responding"
 
+      # - name: Get JWT Token
+      #   id: auth
+      #   run: |
+      #     TOKEN=$(curl -s -X POST http://localhost:5000/login \
+      #     -H "Content-Type: application/json" \
+      #     -d '{"username":"admin","password":"admin"}' | python3 -c "import sys, json; print(json.load(sys.stdin)['token'])")
+      #     echo "JWT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
       - name: Run OWASP ZAP baseline scan
         continue-on-error: true
         uses: zaproxy/action-full-scan@v0.13.0
         with:
           target: "http://localhost:5000"
           fail_action: false
+          # cmd_options: >
+          #   -z "auth.header=Authorization auth.headerValue=Bearer ${{ env.JWT_TOKEN }}"
           token: ${{ secrets.GITHUB_TOKEN }}
           allow_issue_writing: false
 
