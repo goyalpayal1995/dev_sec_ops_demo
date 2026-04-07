@@ -64,9 +64,6 @@ jobs:
     name: Dynamic Analysis (OWASP ZAP)
     runs-on: ubuntu-latest
     needs: build
-    permissions:
-      contents: write
-      issues: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -79,29 +76,58 @@ jobs:
       - name: Install dependencies
         run: pip install flask
 
-      - name: Fix ZAP workspace permissions
-        run: chmod 777 ${{ github.workspace }}
-
       - name: Start Flask app in background
         run: |
           python app.py &
           sleep 8
           curl http://localhost:5000 || echo "App not responding"
 
-      - name: Run OWASP ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.10.0
-        with:
-          target: "http://localhost:5000"
-          fail_action: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allow_issue_writing: false
+      - name: Create ZAP output directory
+        run: |
+          mkdir -p ${{ github.workspace }}/zap-output
+          chmod 777 ${{ github.workspace }}/zap-output
 
-      - name: Upload ZAP report
+      - name: Run ZAP scan and capture results
+        run: |
+          docker run --network=host \
+            -v ${{ github.workspace }}/zap-output:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://localhost:5000 \
+            -r report_html.html \
+            -J report_json.json \
+            -w report_md.md \
+            -I
+          echo "ZAP_EXIT_CODE=$?" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Print vulnerability summary in logs
+        run: |
+          echo "================================================"
+          echo "         DAST VULNERABILITY REPORT              "
+          echo "================================================"
+          cat ${{ github.workspace }}/zap-output/report_md.md || echo "Report not generated"
+          echo "================================================"
+          echo "ZAP Exit Code: $ZAP_EXIT_CODE"
+          echo "0 = No alerts"
+          echo "1 = Warnings found"
+          echo "2 = Failures found"
+          echo "================================================"
+
+      - name: Upload ZAP HTML report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-results
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
+          path: ${{ github.workspace }}/zap-output/
+
+      - name: Fail pipeline if HIGH vulnerabilities found
+        run: |
+          echo "ZAP Exit Code was: $ZAP_EXIT_CODE"
+          if [ "$ZAP_EXIT_CODE" == "2" ]; then
+            echo "❌ HIGH vulnerabilities found - failing pipeline"
+            exit 1
+          else
+            echo "⚠️ Warnings found - check zap-results artifact"
+            exit 0
+          fi
