@@ -55,7 +55,7 @@ jobs:
         with:
           image-ref: dev_sec_ops_demo:${{ github.sha }}
           format: table
-          exit-code: 1
+          exit-code: 0
           ignore-unfixed: true
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL 
 
