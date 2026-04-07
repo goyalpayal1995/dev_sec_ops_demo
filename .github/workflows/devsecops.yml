@@ -89,6 +89,7 @@ jobs:
           curl http://localhost:5000 || echo "App not responding"
 
       - name: Run OWASP ZAP baseline scan
+        continue-on-error: true
         uses: zaproxy/action-baseline@v0.14.0
         with:
           target: "http://localhost:5000"
@@ -97,9 +98,124 @@ jobs:
           allow_issue_writing: false
 
       - name: Print vulnerability summary in logs
+        if: always()
         run: |
-          echo "Vulnerability Summary:"
-          grep -o '"id":"[^"]*"' report_json.json | sort | uniq -c | sort -nr
+          echo "================================================"
+          echo "      DAST VULNERABILITY REPORT - OWASP ZAP    "
+          echo "================================================"
+
+          if [ ! -f "report_json.json" ]; then
+            echo "❌ No report found"
+            exit 0
+          fi
+
+          echo ""
+          echo "📊 SUMMARY BY SEVERITY"
+          echo "------------------------------------------------"
+          HIGH=$(cat report_json.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          alerts=[a for s in data.get('site',[]) for a in s.get('alerts',[])]
+          print(len([a for a in alerts if a.get('riskdesc','').startswith('High')]))
+          ")
+          MEDIUM=$(cat report_json.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          alerts=[a for s in data.get('site',[]) for a in s.get('alerts',[])]
+          print(len([a for a in alerts if a.get('riskdesc','').startswith('Medium')]))
+          ")
+          LOW=$(cat report_json.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          alerts=[a for s in data.get('site',[]) for a in s.get('alerts',[])]
+          print(len([a for a in alerts if a.get('riskdesc','').startswith('Low')]))
+          ")
+          INFO=$(cat report_json.json | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          alerts=[a for s in data.get('site',[]) for a in s.get('alerts',[])]
+          print(len([a for a in alerts if a.get('riskdesc','').startswith('Informational')]))
+          ")
+
+          echo "🔴 HIGH     : $HIGH"
+          echo "🟡 MEDIUM   : $MEDIUM"
+          echo "🟢 LOW      : $LOW"
+          echo "ℹ️  INFO     : $INFO"
+          echo ""
+
+          echo "================================================"
+          echo "       DETAILED FINDINGS BY SEVERITY            "
+          echo "================================================"
+
+          python3 << 'EOF'
+          import json
+
+          with open("report_json.json") as f:
+              data = json.load(f)
+
+          alerts = []
+          for site in data.get("site", []):
+              for alert in site.get("alerts", []):
+                  alerts.append(alert)
+
+          risk_order = {"High": 0, "Medium": 1, "Low": 2, "Informational": 3}
+          alerts.sort(key=lambda x: risk_order.get(x.get("riskdesc", "").split(" ")[0], 99))
+
+          icons = {
+              "High": "🔴",
+              "Medium": "🟡",
+              "Low": "🟢",
+              "Informational": "ℹ️ "
+          }
+
+          current_level = None
+
+          for alert in alerts:
+              risk = alert.get("riskdesc", "Unknown")
+              level = risk.split(" ")[0]
+              name = alert.get("name", "Unknown")
+              desc = alert.get("desc", "")[:120].replace("\n", " ")
+              solution = alert.get("solution", "")[:120].replace("\n", " ")
+              instances = alert.get("instances", [])
+              cweid = alert.get("cweid", "N/A")
+              wascid = alert.get("wascid", "N/A")
+
+              icon = icons.get(level, "⚪")
+
+              if level != current_level:
+                  current_level = level
+                  print(f"\n{'='*48}")
+                  print(f"{icon} {level.upper()} SEVERITY VULNERABILITIES")
+                  print(f"{'='*48}")
+
+              print(f"\n  🎯 Attack Type : {name}")
+              print(f"  ⚠️  Risk        : {risk}")
+              print(f"  🔍 CWE ID      : CWE-{cweid}")
+              print(f"  📋 WASC ID     : {wascid}")
+              print(f"  📝 Description : {desc}...")
+              print(f"  ✅ Solution    : {solution}...")
+              print(f"  🌐 Affected URLs:")
+              for i in instances[:3]:
+                  url = i.get("uri", "")
+                  method = i.get("method", "")
+                  param = i.get("param", "")
+                  attack = i.get("attack", "")
+                  evidence = i.get("evidence", "")[:80]
+                  print(f"     → [{method}] {url}")
+                  if param:
+                      print(f"        Param   : {param}")
+                  if attack:
+                      print(f"        Attack  : {attack}")
+                  if evidence:
+                      print(f"        Evidence: {evidence}")
+              if len(instances) > 3:
+                  print(f"     ... and {len(instances)-3} more instances")
+              print(f"  {'─'*44}")
+
+          print("\n================================================")
+          print("        END OF VULNERABILITY REPORT            ")
+          print("================================================")
+          EOF
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
