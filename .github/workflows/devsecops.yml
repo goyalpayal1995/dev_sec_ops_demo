@@ -96,12 +96,36 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allow_issue_writing: false
 
+      - name: Print vulnerability summary in logs
+        run: |
+          echo "================================================"
+          echo "         DAST VULNERABILITY REPORT              "
+          echo "================================================"
+          cat ${{ github.workspace }}/zap-output/report_md.md || echo "Report not generated"
+          echo "================================================"
+          echo "ZAP Exit Code: $ZAP_EXIT_CODE"
+          echo "0 = No alerts"
+          echo "1 = Warnings found"
+          echo "2 = Failures found"
+          echo "================================================"
+
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-results
           path: |
-            report_html.html
-            report_json.json
-            report_md.md
+           ${{ github.workspace }}/report_html.html
+            ${{ github.workspace }}/report_json.json
+            ${{ github.workspace }}/report_md.md
+
+      - name: Fail pipeline if HIGH vulnerabilities found
+        run: |
+          echo "ZAP Exit Code was: $ZAP_EXIT_CODE"
+          if [ "$ZAP_EXIT_CODE" == "2" ]; then
+            echo "❌ HIGH vulnerabilities found - failing pipeline"
+            exit 1
+          else
+            echo "⚠️ Warnings found - check zap-results artifact"
+            exit 0
+          fi
